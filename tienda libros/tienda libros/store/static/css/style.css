@@ -1,0 +1,135 @@
+/* Estilos personalizados para la librería */
+
+:root {
+    --primary-color: #003366; /* Azul Profundo - Texto, Botones Principales */
+    --secondary-color: #333333; /* Gris Cálido Oscuro - Texto Secundario, Íconos */
+    --background-light: #F9F7F3; /* Blanco Roto - Fondo Principal */
+    --text-dark: #003366; /* Azul Profundo */
+    --text-light: #F9F7F3; /* Blanco Roto */
+    --accent-color: #C7924F; /* Dorado/Ocre - Acento, Destacados */
+    --secondary-accent-color: #A8B99E; /* Verde Salvia Suave - Color Secundario */
+
+    /* Colores específicos para header y footer */
+    --header-bg-color: var(--primary-color); /* Fondo del header: Azul Profundo */
+    --footer-bg-color: var(--primary-color); /* Fondo del footer: Azul Profundo */
+}
+
+.custom-header {
+    background-color: var(--header-bg-color);
+}
+
+.custom-footer {
+    background-color: var(--footer-bg-color);
+}
+
+body {
+    font-family: 'Georgia', serif; /* Una fuente clásica para una librería */
+    background-color: var(--background-light);
+    color: var(--text-dark);
+}
+
+.navbar {
+    background-color: var(--header-bg-color); /* Usa el color del header */
+}
+
+.navbar-brand {
+    font-weight: bold;
+    color: var(--text-light) !important;
+}
+
+.custom-footer {
+    background-color: var(--footer-bg-color);
+    color: var(--text-light);
+    padding: 20px 0;
+    text-align: center;
+    margin-top: 40px;
+}
+
+/* Estilos para las tarjetas de libros */
+.card {
+    border: none;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    transition: transform 0.2s;
+    border-radius: 8px;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+}
+
+.card-title {
+    font-size: 1.25rem;
+    font-weight: bold;
+    color: var(--primary-color); /* Usa Azul Profundo */
+}
+
+.card-text {
+    color: var(--secondary-color); /* Usa Gris Cálido Oscuro */
+}
+
+.btn-primary {
+    background-color: var(--accent-color); /* Usa Dorado/Ocre */
+    border-color: var(--accent-color);
+}
+
+.btn-primary:hover {
+    background-color: #B07E3A; /* Un tono más oscuro de Dorado/Ocre */
+    border-color: #B07E3A;
+}
+
+.btn-logout-danger {
+    color: var(--text-light);
+    border-color: var(--secondary-accent-color);
+}
+
+.btn-logout-danger:hover {
+    background-color: #dc3545; /* Rojo de Bootstrap para peligro */
+    border-color: #dc3545;
+    color: var(--text-light);
+}
+
+.btn-cancel-danger {
+    color: var(--text-light);
+    background-color: var(--secondary-accent-color);
+    border-color: var(--secondary-accent-color);
+}
+
+.btn-cancel-danger:hover {
+    background-color: #dc3545; /* Rojo de Bootstrap para peligro */
+    border-color: #dc3545;
+    color: var(--text-light);
+}
+
+/* Estilos para la sección llamativa de la página principal */
+.hero-section {
+    background: url('../img/banner.png') no-repeat center center;
+    background-size: cover;
+    color: var(--text-light);
+    text-align: center;
+    padding: 160px 0; /* Aumentado para dar más altura al banner */
+    margin-bottom: 40px;
+    border-radius: 8px;
+    position: relative; /* Añadido para posicionamiento absoluto del botón */
+}
+
+.hero-button-container {
+    position: absolute;
+    bottom: 20px; /* Ajusta según sea necesario */
+    right: 20px; /* Ajusta según sea necesario */
+}
+
+.hero-section h1 {
+    font-size: 3.5rem;
+    font-weight: bold;
+    margin-bottom: 20px;
+}
+
+.hero-section p {
+    font-size: 1.5rem;
+    margin-bottom: 30px;
+}
+
+.hero-section .btn {
+    font-size: 1.2rem;
+    padding: 10px 30px;
+}
