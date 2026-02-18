@@ -1,119 +1,73 @@
 {% extends 'base.html' %}
-{% block title %}Librería{% endblock %}
+{% load static %}
 
 {% block content %}
-<div class="hero-section">
-        <div class="hero-button-container">
-            <a href="#libros" class="btn btn-primary btn-lg">Explorar Libros</a>
-        </div>
-    </div>
-<div class="container my-4" id="libros">
-    <h2 class="mb-4">Nuestros Libros</h2>
+<div class="container mt-4">
+    <h1 class="mb-4 text-center">Bienvenido a nuestra Librería</h1>
 
-    <div class="btn-group mb-4" role="group">
-        <a href="{% url 'home' %}" 
-           class="btn btn-outline-primary {% if not tipo_actual %}active{% endif %}">
-            Todos
-        </a>
-        <a href="{% url 'home' %}?tipo=virtual" 
-           class="btn btn-outline-success {% if tipo_actual == 'virtual' %}active{% endif %}">
-            Libros Virtuales (Leer Gratis)
-        </a>
-        <a href="{% url 'home' %}?tipo=fisico" 
-           class="btn btn-outline-danger {% if tipo_actual == 'fisico' %}active{% endif %}">
-            Libros Físicos (Comprar)
-        </a>
+    <!-- Filtros de libros -->
+    <div class="mb-4 text-center">
+        <button class="btn btn-outline-primary mx-2" onclick="fetchAndRenderBooks('')">Todos</button>
+        <button class="btn btn-outline-primary mx-2" onclick="fetchAndRenderBooks('ficcion')">Ficción</button>
+        <button class="btn btn-outline-primary mx-2" onclick="fetchAndRenderBooks('no-ficcion')">No Ficción</button>
+        <button class="btn btn-outline-primary mx-2" onclick="fetchAndRenderBooks('ciencia')">Ciencia</button>
+        <button class="btn btn-outline-primary mx-2" onclick="fetchAndRenderBooks('fantasia')">Fantasía</button>
     </div>
-
-    <p class="text-muted">
-        Mostrando <strong>{{ books|length }}</strong> 
-        libro{{ books|length|pluralize }}
-        {% if tipo_actual == 'virtual' %}(lectura online gratis)
-        {% elif tipo_actual == 'fisico' %}(envío físico)
-        {% endif %}
-    </p>
 
     <div id="books-container" class="row">
-        <!-- Books will be rendered here by Handlebars -->
+        <!-- Los libros se renderizarán aquí con Handlebars -->
     </div>
+</div>
 
-    <script id="book-template" type="text/x-handlebars-template">
-        {{#each books}}
-        <div class="col-md-4 mb-4">
-            <div class="card h-100 shadow-sm">
-                {{#if cover_image}}
-                    <img src="{{cover_image}}" class="card-img-top" style="height: 250px; object-fit: cover;">
-                {{else}}
-                    <div class="bg-light text-center p-5" style="height: 250px;">
-                        <h5 class="text-muted">Sin portada</h5>
-                    </div>
-                {{/if}}
-
-                <div class="card-body d-flex flex-column">
-                    <h5 class="card-title">{{title}}</h5>
-                    <p class="card-text text-muted">por {{author}}</p>
-                    <p class="card-text"><strong>${{price}}</strong></p>
-
-                    <div class="mt-auto">
-                        {{#if is_virtual}}
-                            <a href="/read-ebook/{{id}}" class="btn btn-success w-100">
-                                Leer Ahora
-                            </a>
-                        {{else}}
-                            <a href="/book-detail/{{id}}" class="btn btn-primary w-100">
-                                Ver Detalles / Comprar
-                            </a>
-                        {{/if}}
-                    </div>
+<!-- Handlebars Template -->
+<script id="book-template" type="text/x-handlebars-template">
+    {{#each this}}
+    <div class="col-md-4 mb-4">
+        <div class="card h-100 shadow-sm">
+            {{#if fields.cover_image}}
+                <img src="/media/{{fields.cover_image}}" class="card-img-top" style="height: 250px; object-fit: cover;" alt="{{fields.title}}">
+            {{else}}
+                <div class="bg-light text-center p-5" style="height: 250px; display: flex; align-items: center; justify-content: center;">
+                    <h5 class="text-muted">Sin portada</h5>
                 </div>
-
-                <div class="card-footer text-center small">
-                    {{#if is_virtual}}
-                        <span class="badge bg-success">Lectura Online Gratis</span>
-                    {{else}}
-                        <span class="badge bg-danger">Libro Físico</span>
-                    {{/if}}
+            {{/if}}
+            <div class="card-body d-flex flex-column">
+                <h5 class="card-title">{{fields.title}}</h5>
+                <p class="card-text text-muted">{{fields.author}}</p>
+                <p class="card-text"><strong>Precio: ${{fields.price}}</strong></p>
+                <div class="mt-auto">
+                    <a href="/book/{{pk}}/" class="btn btn-primary btn-sm">Ver Detalles</a>
                 </div>
             </div>
         </div>
-        {{/each}}
-    </script>
-
-    <div id="no-books-message" class="alert alert-info text-center" style="display: none;">
-        <h4>No hay libros en esta categoría aún.</h4>
     </div>
+    {{/each}}
+</script>
 
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const booksContainer = document.getElementById('books-container');
-            const noBooksMessage = document.getElementById('no-books-message');
-            const bookTemplateSource = document.getElementById('book-template').innerHTML;
-            const template = Handlebars.compile(bookTemplateSource);
+<script>
+    const booksContainer = document.getElementById('books-container');
+    const bookTemplateSource = document.getElementById('book-template').innerHTML;
+    const bookTemplate = Handlebars.compile(bookTemplateSource);
 
-            // Function to fetch and render books
-            async function fetchAndRenderBooks() {
-                try {
-                    const response = await fetch('/api/books/'); // Fetch from the new API endpoint
-                    const data = await response.json();
-                    const books = data.books;
+    async function fetchAndRenderBooks(type = '') {
+        let url = '/api/books/';
+        if (type) {
+            url += `?tipo=${type}`; // Asumiendo que tu API puede filtrar por tipo
+        }
+        try {
+            const response = await fetch(url);
+            const data = await response.json();
+            const parsedData = JSON.parse(data); // La respuesta de Django serializers es una cadena JSON
+            booksContainer.innerHTML = bookTemplate(parsedData);
+        } catch (error) {
+            console.error('Error fetching books:', error);
+            booksContainer.innerHTML = '<p class="text-center text-danger">Error al cargar los libros.</p>';
+        }
+    }
 
-                    if (books && books.length > 0) {
-                        const html = template({ books: books });
-                        booksContainer.innerHTML = html;
-                        noBooksMessage.style.display = 'none';
-                    } else {
-                        booksContainer.innerHTML = '';
-                        noBooksMessage.style.display = 'block';
-                    }
-                } catch (error) {
-                    console.error('Error fetching books:', error);
-                    booksContainer.innerHTML = '<div class="alert alert-danger text-center">Error al cargar los libros.</div>';
-                    noBooksMessage.style.display = 'none';
-                }
-            }
-
-            fetchAndRenderBooks(); // Call the function to fetch and render books on page load
-        });
-    </script>
-</div>
+    // Cargar todos los libros al inicio
+    document.addEventListener('DOMContentLoaded', () => {
+        fetchAndRenderBooks();
+    });
+</script>
 {% endblock %}
