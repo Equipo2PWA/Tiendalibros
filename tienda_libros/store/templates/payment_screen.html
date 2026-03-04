@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+
+{% block title %}Pagar {{ book.title }}{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow-lg">
+                <div class="card-header bg-primary text-white text-center">
+                    {% if book.cover_image %}
+                        <img src="{{ book.cover_image.url }}" alt="{{ book.title }}" class="img-fluid mb-3" style="max-height: 200px; object-fit: contain;">
+                    {% endif %}
+                    <h2 class="mb-0">Realizar Pago por {{ book.title }}</h2>
+                </div>
+                <div class="card-body p-4">
+                    <h4 class="card-title text-center mb-4" id="total-container">
+                        Total a Pagar: ${{ book.price }}
+                    </h4>
+                            <form method="post">
+                                {% csrf_token %}
+                                {% for field in form %}
+                                    <div class="mb-3">
+                                        <label for="{{ field.id_for_label }}" class="form-label">{{ field.label }}</label>
+                                        {{ field }}
+                                        {% if field.help_text %}
+                                            <div class="form-text">{{ field.help_text }}</div>
+                                        {% endif %}
+                                        {% for error in field.errors %}
+                                            <div class="alert alert-danger mt-1">{{ error }}</div>
+                                        {% endfor %}
+                                    </div>
+                                {% endfor %}
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-success btn-lg">Confirmar Pago</button>
+                            <a href="{% url 'book_detail' book.id %}" class="btn btn-secondary btn-lg">Cancelar</a>
+                        </div>
+                    </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <script id="total-template" type="text/x-handlebars-template">
+            Total a Pagar: {{currency total}}
+        </script>
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                const quantityInput = document.getElementById('id_quantity');
+                const totalContainer = document.getElementById('total-container');
+                const bookPrice = parseFloat("{{ book.price }}");
+                if (typeof Handlebars !== 'undefined') {
+                    Handlebars.registerHelper('currency', function(value) {
+                        var num = parseFloat(value);
+                        if (isNaN(num)) return value;
+                        return '$' + num.toFixed(2);
+                    });
+                }
+                const templateEl = document.getElementById('total-template');
+                const templateFn = (typeof Handlebars !== 'undefined' && templateEl) ? Handlebars.compile(templateEl.innerHTML) : null;
+
+                function updateTotalPrice() {
+                    const quantity = parseInt(quantityInput.value);
+                    const total = (!isNaN(quantity) && quantity >= 1) ? (bookPrice * quantity) : bookPrice;
+                    if (templateFn && totalContainer) totalContainer.innerHTML = templateFn({ total: total });
+                }
+
+                if (quantityInput) {
+                    quantityInput.addEventListener('input', updateTotalPrice);
+                    updateTotalPrice();
+                }
+            });
+        </script>
+{% endblock %}
