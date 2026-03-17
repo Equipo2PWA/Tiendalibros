@@ -1,0 +1,133 @@
+{% extends 'layout/base.html' %}
+{% block content %}
+
+<div class="container py-5">
+    <div class="checkout-summary-card shadow-sm">
+        <h2 class="text-center mb-5" style="color: #1A1A1A;">Resumen de tu Pedido</h2>
+        
+        <div id="cart-container" class="table-responsive">
+            <table class="table table-hover checkout-table">
+                <thead>
+                    <tr>
+                        <th>Libro</th>
+                        <th>Precio</th>
+                        <th class="text-center">Cantidad</th>
+                        <th class="text-end">Subtotal</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in items %}
+                    <tr>
+                        <td>{{ item.book.title }}</td>
+                        <td>${{ item.book.price }}</td>
+                        <td class="text-center">
+                            <div class="d-flex justify-content-center align-items-center">
+                                <button class="btn btn-sm btn-qty" onclick="updateQuantity({{ item.id }}, 'remove')">-</button>
+                                <span class="mx-3 fw-bold">{{ item.quantity }}</span>
+                                <button class="btn btn-sm btn-qty" onclick="updateQuantity({{ item.id }}, 'add')">+</button>
+                            </div>
+                        </td>
+                        <td class="text-end fw-bold">${{ item.total_price }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="text-end mt-5 border-top pt-4">
+            <h3 style="color: #1A1A1A;">Total: <span class="total-amount" id="cart-total-display">${{ total_del_carrito }}</span></h3>
+            <div id="paypal-button-container" class="mt-4 ms-auto" style="max-width: 400px;"></div>
+        </div>
+    </div>
+</div>
+
+{% verbatim %}
+<script id="cart-template" type="text/x-handlebars-template">
+    {{#if items.length}}
+    <table class="table table-hover checkout-table">
+        <thead>
+            <tr>
+                <th>Libro</th>
+                <th>Precio</th>
+                <th class="text-center">Cantidad</th>
+                <th class="text-end">Subtotal</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{#each items}}
+            <tr>
+                <td>{{book_title}}</td>
+                <td>${{book_price}}</td>
+                <td class="text-center">
+                    <div class="d-flex justify-content-center align-items-center">
+                        <button class="btn btn-sm btn-qty" onclick="updateQuantity({{id}}, 'remove')">-</button>
+                        <span class="mx-3 fw-bold">{{quantity}}</span>
+                        <button class="btn btn-sm btn-qty" onclick="updateQuantity({{id}}, 'add')">+</button>
+                    </div>
+                </td>
+                <td class="text-end fw-bold">${{total_item}}</td>
+            </tr>
+            {{/each}}
+        </tbody>
+    </table>
+    {{else}}
+    <div class="text-center py-5">
+        <h4>Tu carrito está vacío</h4>
+        <a href="/" class="btn btn-qty mt-3">Volver a la tienda</a>
+    </div>
+    {{/if}}
+</script>
+{% endverbatim %}
+
+<script src="https://cdn.jsdelivr.net/npm/handlebars@latest/dist/handlebars.js"></script>
+<script src="https://www.paypal.com/sdk/js?client-id=AbSNxYcWaUVo-LucBYDe5EzjDjY9GO5jQWWS0UGc2tOJZx2SPe8YrdkORaGlSpn5i968u_6CaTDAyzXV&currency=USD"></script>
+
+<script>
+    let currentTotal = "{{ total_del_carrito }}";
+
+    function renderPayPalButton(amount) {
+        document.getElementById('paypal-button-container').innerHTML = '';
+        
+        paypal.Buttons({
+            style: { color: 'gold', shape: 'rect', label: 'pay', height: 48 },
+            createOrder: function(data, actions) {
+                return actions.order.create({
+                    purchase_units: [{ amount: { value: amount } }]
+                });
+            },
+            onApprove: function(data, actions) {
+                return actions.order.capture().then(function(details) {
+                    return fetch('/confirmar-pago/', {
+                        method: 'POST',
+                        headers: { 'content-type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+                        body: JSON.stringify({ orderID: data.orderID })
+                    }).then(res => res.ok ? window.location.href = "/" : alert("Error al confirmar"));
+                });
+            }
+        }).render('#paypal-button-container');
+    }
+
+    function updateQuantity(itemId, action) {
+        fetch(`/api/cart/update/${itemId}/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+            body: JSON.stringify({ action: action })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'success') {
+                const source = document.getElementById('cart-template').innerHTML;
+                const template = Handlebars.compile(source);
+                document.getElementById('cart-container').innerHTML = template({ items: data.items });
+                document.getElementById('cart-total-display').innerText = `$${data.cart_total}`;
+                renderPayPalButton(data.cart_total);
+            } else {
+                alert(data.message);
+            }
+        });
+    }
+    document.addEventListener('DOMContentLoaded', () => {
+        renderPayPalButton(currentTotal);
+    });
+</script>
+{% endblock %}
