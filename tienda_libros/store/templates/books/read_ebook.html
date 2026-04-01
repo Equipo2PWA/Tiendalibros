@@ -6,27 +6,33 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.5/jszip.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/epubjs/dist/epub.min.js"></script>
 
-<div id="reader-bg" class="container-fluid py-4 transition-all" style="background-color: var(--background-light); min-height: 100vh;">
-    
+<div id="reader-bg" class="container-fluid py-4 transition-all" style="min-height: 100vh;">
+
+    <!-- Barra de controles -->
     <div class="row justify-content-center mb-3">
         <div class="col-md-11 col-lg-9">
             <div class="card shadow-sm border-0" style="background-color: #1A1A1A;">
                 <div class="card-body d-flex flex-wrap justify-content-between align-items-center py-2 px-4">
-                    
+
                     <div class="d-flex align-items-center gap-2">
-                        <div class="btn-group btn-group-sm">
-                            <button onclick="setTheme('light')" class="btn btn-light border">☀</button>
-                            <button onclick="setTheme('sepia')" class="btn" style="background-color: #FFFDD0;">☁</button>
-                            <button onclick="setTheme('dark')" class="btn btn-dark">☾</button>
+                        <!-- Temas -->
+                        <div class="btn-group btn-group-sm" id="theme-btns">
+                            <button onclick="setTheme('light')"  class="btn btn-light border"               title="Claro">☀</button>
+                            <button onclick="setTheme('sepia')"  class="btn border"
+                                    style="background-color:#FFFDD0;" title="Sepia">☁</button>
+                            <button onclick="setTheme('dark')"   class="btn btn-dark border"                title="Oscuro">☾</button>
                         </div>
+                        <!-- Fuente -->
                         <div class="ms-2 btn-group btn-group-sm">
                             <button onclick="changeFontSize(-2)" class="btn btn-outline-light">A-</button>
-                            <button onclick="changeFontSize(2)" class="btn btn-outline-light">A+</button>
+                            <button onclick="changeFontSize(2)"  class="btn btn-outline-light">A+</button>
                         </div>
-                        <button onclick="addBookmark()" class="btn btn-sm btn-outline-warning ms-3" title="Añadir Marcador">
+                        <!-- Marcador -->
+                        <button onclick="addBookmark()" class="btn btn-sm btn-outline-warning ms-3">
                             <i class="fas fa-bookmark"></i> + Marcador
                         </button>
-                        <button onclick="resetReader()" class="btn btn-sm btn-outline-danger ms-2" title="Reiniciar Ajustes">
+                        <!-- Reiniciar -->
+                        <button onclick="resetReader()" class="btn btn-sm btn-outline-danger ms-2">
                             <i class="fas fa-undo"></i> Reiniciar
                         </button>
                     </div>
@@ -37,8 +43,8 @@
 
                     <div class="d-flex align-items-center gap-2">
                         <div class="btn-group">
-                            <button id="prev" class="btn btn-sm btn-accent" style="background-color: #D4AF37; color: white;">←</button>
-                            <button id="next" class="btn btn-sm btn-accent" style="background-color: #D4AF37; color: white;">→</button>
+                            <button id="prev" class="btn btn-sm" style="background-color:#D4AF37;color:white;">←</button>
+                            <button id="next" class="btn btn-sm" style="background-color:#D4AF37;color:white;">→</button>
                         </div>
                         <a href="{% url 'home' %}" class="btn btn-sm btn-danger ms-2">Cerrar</a>
                     </div>
@@ -47,166 +53,219 @@
         </div>
     </div>
 
+    <!-- Contenido -->
     <div class="row justify-content-center">
+
+        <!-- Panel de marcadores -->
         <div class="col-md-2 d-none d-lg-block">
-            <div class="card shadow-sm h-100 border-0" style="background-color: rgba(255,255,255,0.5);">
+            <div class="card shadow-sm h-100 border-0" style="background-color:rgba(255,255,255,0.5);">
                 <div class="card-header bg-transparent border-0 text-center">
                     <h6 class="theme-text mb-0"><i class="fas fa-list-ul"></i> Marcadores</h6>
                 </div>
-                <div class="card-body p-2" id="bookmarks-list" style="max-height: 60vh; overflow-y: auto;">
-                    <p class="text-muted small text-center italic">No hay marcadores aún.</p>
+                <div class="card-body p-2" id="bookmarks-list" style="max-height:60vh;overflow-y:auto;">
+                    <p class="text-muted small text-center">No hay marcadores aún.</p>
                 </div>
             </div>
         </div>
 
+        <!-- Visor -->
         <div class="col-md-10 col-lg-7">
-            <div id="viewer-wrapper" class="shadow-lg transition-all" 
-                 style="background-color: #FFFFFF; height: 75vh; border-radius: 8px; overflow: hidden; border: 1px solid rgba(0,0,0,0.1); position: relative;">
-                <div id="viewer" style="height: 100%;"></div>
+            <div id="viewer-wrapper" class="shadow-lg transition-all"
+                 style="height:75vh;border-radius:8px;overflow:hidden;border:1px solid rgba(0,0,0,0.1);position:relative;">
+                <div id="viewer" style="height:100%;"></div>
                 <div id="book-loader" class="position-absolute top-50 start-50 translate-middle">
                     <div class="spinner-border text-warning" role="status"></div>
                 </div>
             </div>
-            
             <div class="d-flex justify-content-between mt-3 px-2 text-muted small">
-                <span id="location" class="theme-text">Cargando páginas...</span>
+                <span id="location"   class="theme-text">Cargando páginas...</span>
                 <span id="percentage" class="theme-text">0% leído</span>
             </div>
         </div>
     </div>
 </div>
 
+<style>
+    .transition-all { transition: background-color 0.3s ease, color 0.3s ease; }
+    #viewer iframe  { border: none !important; }
+    .btn-accent:hover { opacity: 0.9; transform: scale(1.05); }
+    #bookmarks-list div:hover { background-color: #f8f9fa !important; cursor: pointer; }
+    /* Botón activo del tema seleccionado */
+    #theme-btns .btn.active-theme { outline: 2px solid #D4AF37; outline-offset: 2px; }
+</style>
+
 <script>
-    let fontSize = 100;
-    const bookId = "{{ book.id }}";
-    const book = ePub("{{ book.ebook_file.url }}");
-    const rendition = book.renderTo("viewer", {
-        width: "100%", height: "100%", flow: "paginated", manager: "default"
-    });
 
-    const savedLocation = localStorage.getItem(`book-progress-${bookId}`);
-    rendition.display(savedLocation || undefined);
+const BOOK_ID = "{{ book.id }}";
+let fontSize  = parseInt(localStorage.getItem(`font-${BOOK_ID}`)) || 100;
 
-const themesCSS = {
+
+const THEMES = {
     light: {
-        body: { 'background': '#ffffff !important', 'color': '#1A1A1A !important', 'font-family': 'Georgia, serif !important' }
+        'html': { 'background': '#ffffff !important' },
+        'body': {
+            'background': '#ffffff !important',
+            'color':      '#1A1A1A !important',
+            'font-family':'Georgia, serif !important',
+            'line-height':'1.8 !important',
+        }
     },
     sepia: {
-        body: { 'background': '#FFFDD0 !important', 'color': '#5f4b32 !important', 'font-family': 'Georgia, serif !important' }
+        'html': { 'background': '#FFFDD0 !important' },
+        'body': {
+            'background': '#FFFDD0 !important',
+            'color':      '#5f4b32 !important',
+            'font-family':'Georgia, serif !important',
+            'line-height':'1.8 !important',
+        }
     },
     dark: {
-        body: { 'background': '#1A1A1A !important', 'color': '#E5E5E5 !important', 'font-family': 'Georgia, serif !important' }
+        'html': { 'background': '#1A1A1A !important' },
+        'body': {
+            'background': '#1A1A1A !important',
+            'color':      '#E5E5E5 !important',
+            'font-family':'Georgia, serif !important',
+            'line-height':'1.8 !important',
+        }
     }
 };
 
-Object.keys(themesCSS).forEach(n => rendition.themes.register(n, themesCSS[n]));
+const OUTER = {
+    light: { bg: '#F9F7F3', wrapper: '#ffffff',  text: '#666666' },
+    sepia: { bg: '#f4f1ea', wrapper: '#FFFDD0',  text: '#5f4b32' },
+    dark:  { bg: '#0b0b0b', wrapper: '#1A1A1A',  text: '#E5E5E5' },
+};
+
+
+const epubBook  = ePub("{{ book.ebook_file.url }}");
+const rendition = epubBook.renderTo("viewer", {
+    width: "100%", height: "100%",
+    flow: "paginated", manager: "default"
+});
+
+Object.entries(THEMES).forEach(([name, rules]) => {
+    rendition.themes.register(name, rules);
+});
+
+rendition.themes.fontSize(fontSize + "%");
+
+const savedLocation = localStorage.getItem(`progress-${BOOK_ID}`);
+rendition.display(savedLocation || undefined);
+
 
 function setTheme(mode) {
     rendition.themes.select(mode);
-    
-    rendition.themes.override('background', themesCSS[mode].body.background);
-    rendition.themes.override('color', themesCSS[mode].body.color);
 
-    const bg = document.getElementById('reader-bg');
-    const wrap = document.getElementById('viewer-wrapper');
-    const texts = document.querySelectorAll('.theme-text');
-    
-    if(mode === 'dark'){
-        bg.style.backgroundColor = '#0b0b0b'; 
-        wrap.style.setProperty('background-color', '#1A1A1A', 'important');
-        texts.forEach(t => t.style.color = '#E5E5E5');
-    } else if(mode === 'sepia'){
-        bg.style.backgroundColor = '#f4f1ea'; 
-        wrap.style.setProperty('background-color', '#FFFDD0', 'important');
-        texts.forEach(t => t.style.color = '#5f4b32');
-    } else {
-        bg.style.backgroundColor = '#F9F7F3'; 
-        wrap.style.setProperty('background-color', '#ffffff', 'important');
-        texts.forEach(t => t.style.color = '#666');
-    }
-}
+    const outer   = OUTER[mode];
+    const bg      = document.getElementById('reader-bg');
+    const wrapper = document.getElementById('viewer-wrapper');
 
-    let bookmarks = JSON.parse(localStorage.getItem(`bookmarks-${bookId}`)) || [];
+    bg.style.backgroundColor      = outer.bg;
+    wrapper.style.backgroundColor = outer.wrapper;
 
-    function addBookmark() {
-        const currentLocation = rendition.currentLocation();
-        const cfi = currentLocation.start.cfi;
-        const page = currentLocation.start.displayed.page;
-        
-        if (!bookmarks.some(b => b.cfi === cfi)) {
-            bookmarks.push({ cfi, page, time: new Date().toLocaleTimeString() });
-            localStorage.setItem(`bookmarks-${bookId}`, JSON.stringify(bookmarks));
-            renderBookmarks();
-        }
-    }
-
-    function removeBookmark(cfi) {
-        bookmarks = bookmarks.filter(b => b.cfi !== cfi);
-        localStorage.setItem(`bookmarks-${bookId}`, JSON.stringify(bookmarks));
-        renderBookmarks();
-    }
-
-    function renderBookmarks() {
-        const list = document.getElementById('bookmarks-list');
-        if (bookmarks.length === 0) {
-            list.innerHTML = '<p class="text-muted small text-center italic">No hay marcadores.</p>';
-            return;
-        }
-        list.innerHTML = bookmarks.map(b => `
-            <div class="d-flex justify-content-between align-items-center bg-white p-2 mb-2 rounded shadow-sm border-start border-warning border-4">
-                <a href="#" onclick="rendition.display('${b.cfi}')" class="text-decoration-none text-dark small">
-                    Pág. ${b.page} <br><span class="text-muted" style="font-size:0.7rem">${b.time}</span>
-                </a>
-                <button onclick="removeBookmark('${b.cfi}')" class="btn btn-sm text-danger">&times;</button>
-            </div>
-        `).join('');
-    }
-
-    function resetReader() {
-    if (confirm("¿Deseas restablecer los ajustes de lectura y volver al inicio?")) {
-        fontSize = 100;
-        rendition.themes.fontSize("100%");
-        setTheme('light');
-        localStorage.removeItem(`book-progress-${bookId}`);
-        rendition.display(0); 
-        
-        alert("Ajustes restablecidos.");
-    }
-}
-
-    rendition.on("relocated", (loc) => {
-        localStorage.setItem(`book-progress-${bookId}`, loc.start.cfi);
-        if (book.locations.length() > 0) {
-            const percent = book.locations.percentageFromCfi(loc.start.cfi);
-            document.getElementById("percentage").textContent = Math.round(percent * 100) + "% leído";
-            document.getElementById("location").textContent = `Página ${loc.start.displayed.page}`;
-        }
-        document.getElementById('book-loader').style.display = 'none';
+    document.querySelectorAll('.theme-text').forEach(el => {
+        el.style.color = outer.text;
     });
 
-    function changeFontSize(d) {
-        fontSize = Math.max(60, Math.min(200, fontSize + d));
-        rendition.themes.fontSize(fontSize + "%");
-    }
+    document.querySelectorAll('#theme-btns .btn').forEach(btn => {
+        btn.classList.remove('active-theme');
+    });
+    const idx = { light: 0, sepia: 1, dark: 2 }[mode];
+    document.querySelectorAll('#theme-btns .btn')[idx]?.classList.add('active-theme');
 
-   book.ready.then(() => {
-    const currentMode = localStorage.getItem(`theme-${bookId}`) || 'light';
-    setTheme(currentMode);
+    localStorage.setItem(`theme-${BOOK_ID}`, mode);
+}
+
+
+function changeFontSize(delta) {
+    fontSize = Math.max(60, Math.min(200, fontSize + delta));
+    rendition.themes.fontSize(fontSize + "%");
+    localStorage.setItem(`font-${BOOK_ID}`, fontSize);
+}
+
+
+let bookmarks = JSON.parse(localStorage.getItem(`bookmarks-${BOOK_ID}`)) || [];
+
+function addBookmark() {
+    const loc = rendition.currentLocation();
+    if (!loc?.start) return;
+
+    const cfi  = loc.start.cfi;
+    const page = loc.start.displayed.page;
+
+    if (bookmarks.some(b => b.cfi === cfi)) return; // ya existe
+
+    bookmarks.push({ cfi, page, time: new Date().toLocaleTimeString() });
+    localStorage.setItem(`bookmarks-${BOOK_ID}`, JSON.stringify(bookmarks));
     renderBookmarks();
-    return book.locations.generate(1000);
-    });
-    document.getElementById("prev").onclick = () => rendition.prev();
-    document.getElementById("next").onclick = () => rendition.next();
-    window.onkeydown = (e) => {
-        if (e.key === "ArrowLeft") rendition.prev();
-        if (e.key === "ArrowRight") rendition.next();
-    };
+}
+
+function removeBookmark(cfi) {
+    bookmarks = bookmarks.filter(b => b.cfi !== cfi);
+    localStorage.setItem(`bookmarks-${BOOK_ID}`, JSON.stringify(bookmarks));
+    renderBookmarks();
+}
+
+function renderBookmarks() {
+    const list = document.getElementById('bookmarks-list');
+    if (bookmarks.length === 0) {
+        list.innerHTML = '<p class="text-muted small text-center">No hay marcadores.</p>';
+        return;
+    }
+    list.innerHTML = bookmarks.map(b => `
+        <div class="d-flex justify-content-between align-items-center bg-white p-2 mb-2 rounded shadow-sm border-start border-warning border-4">
+            <a href="#" onclick="rendition.display('${b.cfi}'); return false;"
+               class="text-decoration-none text-dark small">
+                Pág. ${b.page}<br>
+                <span class="text-muted" style="font-size:0.7rem">${b.time}</span>
+            </a>
+            <button onclick="removeBookmark('${b.cfi}')" class="btn btn-sm text-danger">&times;</button>
+        </div>
+    `).join('');
+}
+
+
+function resetReader() {
+    if (!confirm("¿Deseas restablecer los ajustes y volver al inicio?")) return;
+
+    fontSize = 100;
+    rendition.themes.fontSize("100%");
+    localStorage.removeItem(`font-${BOOK_ID}`);
+    localStorage.removeItem(`progress-${BOOK_ID}`);
+
+    setTheme('light');
+    rendition.display(0);
+}
+
+rendition.on("relocated", (loc) => {
+    localStorage.setItem(`progress-${BOOK_ID}`, loc.start.cfi);
+
+    document.getElementById('book-loader').style.display = 'none';
+    document.getElementById('location').textContent =
+        `Página ${loc.start.displayed.page}`;
+
+    if (epubBook.locations.length() > 0) {
+        const pct = epubBook.locations.percentageFromCfi(loc.start.cfi);
+        document.getElementById('percentage').textContent =
+            Math.round(pct * 100) + "% leído";
+    }
+});
+
+epubBook.ready.then(() => {
+    const savedTheme = localStorage.getItem(`theme-${BOOK_ID}`) || 'light';
+    setTheme(savedTheme);
+    renderBookmarks();
+    return epubBook.locations.generate(1000);
+});
+
+
+document.getElementById("prev").onclick = () => rendition.prev();
+document.getElementById("next").onclick = () => rendition.next();
+
+window.onkeydown = (e) => {
+    if (e.key === "ArrowLeft")  rendition.prev();
+    if (e.key === "ArrowRight") rendition.next();
+};
 </script>
 
-<style>
-    .transition-all { transition: all 0.4s ease; }
-    #viewer iframe { border: none !important; }
-    .btn-accent:hover { opacity: 0.9; transform: scale(1.05); }
-    #bookmarks-list div:hover { background-color: #f8f9fa !important; cursor: pointer; }
-</style>
 {% endblock %}

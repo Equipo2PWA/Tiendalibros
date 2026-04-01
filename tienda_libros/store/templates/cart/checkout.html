@@ -22,9 +22,9 @@
                         <td>${{ item.book.price }}</td>
                         <td class="text-center">
                             <div class="d-flex justify-content-center align-items-center">
-                                <button class="btn btn-sm btn-qty" onclick="updateQuantity({{ item.id }}, 'remove')">-</button>
+                                <button class="btn btn-sm btn-qty" onclick="updateQuantity({{ item.id }}, 'remove', {{ item.book.id }})">-</button>
                                 <span class="mx-3 fw-bold">{{ item.quantity }}</span>
-                                <button class="btn btn-sm btn-qty" onclick="updateQuantity({{ item.id }}, 'add')">+</button>
+                                <button class="btn btn-sm btn-qty" onclick="updateQuantity({{ item.id }}, 'add', {{ item.book.id }})">+</button>
                             </div>
                         </td>
                         <td class="text-end fw-bold">${{ item.total_price }}</td>
@@ -60,9 +60,9 @@
                 <td>${{book_price}}</td>
                 <td class="text-center">
                     <div class="d-flex justify-content-center align-items-center">
-                        <button class="btn btn-sm btn-qty" onclick="updateQuantity({{id}}, 'remove')">-</button>
+                        <button class="btn btn-sm btn-qty" onclick="updateQuantity({{id}}, 'remove', {{book_id}})">-</button>
                         <span class="mx-3 fw-bold">{{quantity}}</span>
-                        <button class="btn btn-sm btn-qty" onclick="updateQuantity({{id}}, 'add')">+</button>
+                        <button class="btn btn-sm btn-qty" onclick="updateQuantity({{id}}, 'add', {{book_id}})">+</button>
                     </div>
                 </td>
                 <td class="text-end fw-bold">${{total_item}}</td>
@@ -84,48 +84,93 @@
 
 <script>
     let currentTotal = "{{ total_del_carrito }}";
-
     function renderPayPalButton(amount) {
         document.getElementById('paypal-button-container').innerHTML = '';
-        
+
         paypal.Buttons({
             style: { color: 'gold', shape: 'rect', label: 'pay', height: 48 },
+
             createOrder: function(data, actions) {
                 return actions.order.create({
                     purchase_units: [{ amount: { value: amount } }]
                 });
             },
+
             onApprove: function(data, actions) {
                 return actions.order.capture().then(function(details) {
                     return fetch('/confirmar-pago/', {
                         method: 'POST',
-                        headers: { 'content-type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+                        headers: {
+                            'content-type': 'application/json',
+                            'X-CSRFToken': '{{ csrf_token }}'
+                        },
                         body: JSON.stringify({ orderID: data.orderID })
-                    }).then(res => res.ok ? window.location.href = "/" : alert("Error al confirmar"));
+                    }).then(async res => {
+                        if (res.ok) {
+                            await clearCartInIDB();
+                            window.location.href = "/";
+                        } else {
+                            alert("Error al confirmar el pago");
+                        }
+                    });
                 });
             }
         }).render('#paypal-button-container');
     }
 
-    function updateQuantity(itemId, action) {
+    function updateQuantity(itemId, action, bookId) {
         fetch(`/api/cart/update/${itemId}/`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
             body: JSON.stringify({ action: action })
         })
         .then(res => res.json())
-        .then(data => {
+        .then(async data => {
             if (data.status === 'success') {
-                const source = document.getElementById('cart-template').innerHTML;
+                const source   = document.getElementById('cart-template').innerHTML;
                 const template = Handlebars.compile(source);
                 document.getElementById('cart-container').innerHTML = template({ items: data.items });
                 document.getElementById('cart-total-display').innerText = `$${data.cart_total}`;
                 renderPayPalButton(data.cart_total);
+                await syncItemToIDB(data.items, bookId, action);
+
             } else {
                 alert(data.message);
             }
         });
     }
+
+    async function syncItemToIDB(serverItems, bookId, action) {
+        if (!window.CartDB) return;
+
+        const updated = serverItems.find(i => i.book_id === bookId || String(i.book_id) === String(bookId));
+
+        if (updated) {
+            await CartDB.saveItem({
+                item_id   : updated.id,
+                book_id   : updated.book_id ?? bookId,
+                book_title: updated.book_title,
+                book_price: updated.book_price,
+                quantity  : updated.quantity,
+            });
+        } else if (action === 'remove') {
+            await CartDB.removeItem(bookId);
+        }
+        CartDB.refresh();
+    }
+
+    async function clearCartInIDB() {
+        if (!window.CartDB) return;
+        const items = await CartDB.getAll();
+        for (const item of items) {
+            await CartDB.removeItem(item.book_id);
+        }
+        CartDB.refresh();
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
         renderPayPalButton(currentTotal);
     });
