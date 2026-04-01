@@ -1,50 +1,140 @@
 {% extends 'layout/base.html' %}
+{% load static %}
 
 {% block title %}{{ book.title }}{% endblock %}
 
 {% block content %}
-    <div class="row">
-        <div class="col-md-4">
+<div class="container py-5">
+    <div class="row g-4">
+
+        <div class="col-md-4 text-center">
             {% if book.cover_image %}
-                <img src="{{ book.cover_image.url }}" class="img-fluid" alt="Portada de {{ book.title }}">
+                <img src="{{ book.cover_image.url }}"
+                     class="img-fluid rounded shadow"
+                     alt="Portada de {{ book.title }}"
+                     style="max-height: 420px; object-fit: cover;">
             {% else %}
-                <img src="https://via.placeholder.com/300x400?text=No+Image" class="img-fluid" alt="Sin portada">
+                <div class="bg-light rounded d-flex align-items-center justify-content-center shadow"
+                     style="height: 420px;">
+                    <span class="text-muted fs-5">Sin portada</span>
+                </div>
             {% endif %}
         </div>
+
         <div class="col-md-8">
-            <h2>{{ book.title }}</h2>
-            <p><strong>Autor:</strong> {{ book.author }}</p>
-            <p><strong>Precio:</strong> ${{ book.price }}</p>
-            <p><strong>Tipo:</strong> {% if book.is_virtual %}Virtual{% else %}Físico{% endif %}</p>
-            <p><strong>Descripción:</strong> {{ book.description }}</p>
+            <h2 class="mb-1">{{ book.title }}</h2>
+            <p class="text-muted mb-3">por <strong>{{ book.author }}</strong></p>
+
+            <h4 class="mb-3">${{ book.price }}</h4>
+
+            <p>{{ book.description }}</p>
+
             {% if not book.is_virtual %}
-                <p><strong>Stock disponible:</strong> {{ book.stock }}</p>
+                <p class="mb-3">
+                    <span class="badge bg-{% if book.stock > 0 %}success{% else %}danger{% endif %} fs-6">
+                        {% if book.stock > 0 %}
+                            Stock disponible: {{ book.stock }}
+                        {% else %}
+                            Sin stock
+                        {% endif %}
+                    </span>
+                </p>
             {% endif %}
-            <div class="d-grid gap-2 d-md-block">
-                {% if book.is_virtual and book.ebook_file %}
-                    <a href="{% url 'read_ebook' book.id %}" class="btn btn-success btn-lg">
-                        Leer Online Gratis
-                    </a>
-                    <a href="{{ book.ebook_file.url }}" class="btn btn-outline-success btn-lg" download>
-                        Descargar PDF
-                    </a>
+            <div class="d-flex flex-wrap gap-2 mt-4">
+                {% if book.is_virtual %}
+                    {% if book.ebook_file %}
+                        <a href="{% url 'read_ebook' book.id %}" class="btn btn-success btn-lg">
+                            <i class="fas fa-book-open me-1"></i> Leer Online Gratis
+                        </a>
+                    {% endif %}
                 {% else %}
-                    {% if not already_bought %}
-                        <a href="{% url 'payment_screen' book.id %}" class="btn btn-success btn-lg">
-                            {% if book.is_virtual %}Comprar{% else %}Comprar físico{% endif %}
+                    {% if book.stock > 0 %}
+                        <button id="add-cart-btn"
+                                class="btn btn-primary btn-lg"
+                                onclick="addToCartDetail({{ book.id }}, this)">
+                            <i class="fas fa-cart-plus me-1"></i> Agregar al carrito
+                        </button>
+                        <a href="{% url 'view_cart' %}" class="btn btn-outline-primary btn-lg">
+                            <i class="fas fa-shopping-cart me-1"></i> Ver carrito
                         </a>
                     {% else %}
-                        <p class="text-success">¡Ya has comprado este libro!</p>
+                        <button class="btn btn-secondary btn-lg" disabled>Sin stock</button>
                     {% endif %}
                 {% endif %}
-
-                {% if user.is_authenticated and user == book.uploaded_by or user.is_authenticated and user.is_superuser %}
-                    <form action="{% url 'delete_book' book.id %}" method="post" class="d-inline-block mt-2 mt-md-0">
-                        {% csrf_token %}
-                        <button type="submit" class="btn btn-danger btn-lg" onclick="return confirm('¿Estás seguro de que quieres eliminar este libro?');">Eliminar Libro</button>
-                    </form>
-                {% endif %}
             </div>
+            <div id="cart-notice" class="alert mt-3" style="display:none;"></div>
         </div>
     </div>
+</div>
+
+<script>
+function addToCartDetail(bookId, btn) {
+    const originalHTML = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Agregando...';
+
+    fetch(`/api/cart/add/${bookId}/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': getCookie('csrftoken'),
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({})
+    })
+    .then(res => {
+        if (res.status === 401 || res.status === 403) {
+            window.location.href = '/login/';
+            return null;
+        }
+        return res.json();
+    })
+    .then(async data => {
+        if (!data) return;
+
+        const notice = document.getElementById('cart-notice');
+
+        if (data.status === 'success') {
+            if (window.CartDB) {
+                const cartRes  = await fetch('/api/cart/items/');
+                const cartData = await cartRes.json();
+                const item     = cartData.items?.find(i => i.book_id === bookId);
+                if (item) await CartDB.saveItem(item);
+                CartDB.refresh();
+            }
+
+            btn.innerHTML = '<i class="fas fa-check me-1"></i> Añadido';
+            btn.classList.replace('btn-primary', 'btn-success');
+
+            notice.className = 'alert alert-success mt-3';
+            notice.innerHTML = `"{{ book.title }}" fue agregado al carrito. <a href="/cart/">Ver carrito →</a>`;
+            notice.style.display = 'block';
+
+            setTimeout(() => {
+                btn.innerHTML = originalHTML;
+                btn.classList.replace('btn-success', 'btn-primary');
+                btn.disabled = false;
+            }, 2000);
+
+        } else {
+            notice.className = 'alert alert-danger mt-3';
+            notice.textContent = data.message || 'Error al agregar al carrito';
+            notice.style.display = 'block';
+            btn.innerHTML = originalHTML;
+            btn.disabled = false;
+        }
+    })
+    .catch(err => {
+        console.error(err);
+        btn.innerHTML = originalHTML;
+        btn.disabled = false;
+    });
+}
+
+function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop().split(';').shift();
+    return null;
+}
+</script>
 {% endblock %}
