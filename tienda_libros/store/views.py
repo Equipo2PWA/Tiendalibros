@@ -150,10 +150,11 @@ def update_cart_item(request, item_id):
 
             for i in cart.items.all():
                 items_list.append({
-                    'id': i.id,
+                    'id'        : i.id,
+                    'book_id'   : i.book.id,       
                     'book_title': i.book.title,
                     'book_price': str(i.book.price),
-                    'quantity': i.quantity,
+                    'quantity'  : i.quantity,
                     'total_item': str(i.total_price())
                 })
 
@@ -192,6 +193,40 @@ def add_to_cart_api(request, book_id):
             'message': f'"{book.title}" añadido al carrito',
             'total_items': total_items
         })
+    
+@login_required
+def get_cart_items(request):
+    """
+    GET /api/cart/items/
+    Devuelve todos los ítems del carrito del usuario autenticado
+    en el formato que espera el IndexedDB del frontend.
+    """
+    if request.method != 'GET':
+        return JsonResponse({'status': 'error', 'message': 'Método no permitido'}, status=405)
+ 
+    cart, _ = Cart.objects.get_or_create(user=request.user)
+    items   = cart.items.select_related('book').all()
+ 
+    items_data = [
+        {
+            'item_id'   : item.id,               # id del CartItem en Django
+            'book_id'   : item.book.id,           # clave para IndexedDB
+            'book_title': item.book.title,
+            'book_price': str(item.book.price),
+            'quantity'  : item.quantity,
+        }
+        for item in items
+    ]
+ 
+    total_items = sum(i['quantity'] for i in items_data)
+ 
+    return JsonResponse({
+        'status'     : 'success',
+        'items'      : items_data,
+        'total_items': total_items,
+        'cart_total' : str(cart.total_price()),
+    })
+
 
 @csrf_exempt
 def confirmar_pago(request):

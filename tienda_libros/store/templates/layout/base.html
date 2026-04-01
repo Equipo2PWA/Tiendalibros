@@ -7,15 +7,48 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="{% static 'css/style.css' %}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        .cart-badge {
+            position: absolute;
+            top: -6px;
+            right: -8px;
+            background: #e74c3c;
+            color: #fff;
+            border-radius: 50%;
+            font-size: 10px;
+            font-weight: 700;
+            width: 18px;
+            height: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+            transition: transform 0.2s;
+        }
+        .cart-badge.bump {
+            transform: scale(1.4);
+        }
+        .cart-btn-wrapper {
+            position: relative;
+            display: inline-block;
+        }
+    </style>
 </head>
 <body>
    <header class="custom-header text-white p-3">
         <div class="container">
             <div class="d-flex justify-content-between align-items-center">
                 <h1><a href="{% url 'home' %}" class="text-white text-decoration-none"><i class="fas fa-book-open"></i> Libreria UTVAM</a></h1>
-                <div>
+                <div class="d-flex align-items-center gap-2">
                     {% if user.is_authenticated %}
-                        <span class="me-3"><i class="fas fa-user"></i> Hola, {{ user.username }}!</span>
+                        <span class="me-2"><i class="fas fa-user"></i> Hola, {{ user.username }}!</span>
+
+                        {# --- Botón carrito con badge --- #}
+                        <a href="{% url 'view_cart' %}" class="btn btn-outline-light me-2 cart-btn-wrapper" id="cart-nav-btn" title="Mi carrito">
+                            <i class="fas fa-shopping-cart"></i>
+                            <span class="cart-badge" id="cart-badge" style="display:none;">0</span>
+                        </a>
+
                         <a href="{% url 'upload_book' %}" class="btn btn-light me-2">+ Subir libro</a>
                         <form method="POST" action="{% url 'logout' %}" style="display: inline;">
                             {% csrf_token %}
@@ -38,69 +71,196 @@
     <footer class="custom-footer text-white p-3 mt-4 text-center">
         <p class="mb-0">&copy; 2025 Librería. Todos los derechos reservados. | <a href="{% url 'contact' %}" class="text-white text-decoration-none">Contacto</a></p>
     </footer>
+
     <script>
-        const DB_NAME = "LibreriaDB";
-        const DB_VERSION = 1;
+    const DB_NAME    = "LibreriaDB";
+    const DB_VERSION = 2;   
+    const CURRENT_USER = {% if user.is_authenticated %}"{{ user.username }}"{% else %}null{% endif %};
+    function initDB() {
+        return new Promise((resolve, reject) => {
+            const request = indexedDB.open(DB_NAME, DB_VERSION);
 
-        function initDB() {
-            return new Promise((resolve, reject) => {
-                const request = indexedDB.open(DB_NAME, DB_VERSION);
-                request.onupgradeneeded = (e) => {
-                    const db = e.target.result;
-                    if (!db.objectStoreNames.contains("user_session")) {
-                        db.createObjectStore("user_session", { keyPath: "id" });
-                    }
-                };
-                request.onsuccess = () => resolve(request.result);
-                request.onerror = () => reject(request.error);
-            });
-        }
+            request.onupgradeneeded = (e) => {
+                const db = e.target.result;
 
-        async function syncUserSession() {
-            const db = await initDB();
-            const tx = db.transaction("user_session", "readwrite");
-            const store = tx.objectStore("user_session");
+                if (!db.objectStoreNames.contains("user_session")) {
+                    db.createObjectStore("user_session", { keyPath: "id" });
+                }
 
-            {% if user.is_authenticated %}
-                store.put({ id: "active_user", username: "{{ user.username }}" });
-            {% else %}
-                store.delete("active_user"); 
-            {% endif %}
-        }
+                if (!db.objectStoreNames.contains("cart")) {
+                    const cartStore = db.createObjectStore("cart", { keyPath: "key" });
+                    cartStore.createIndex("by_user", "username", { unique: false });
+                }
+            };
 
-        async function checkOfflineSession() {
-            if (!navigator.onLine) {
-                const db = await initDB();
-                const tx = db.transaction("user_session", "readonly");
-                const store = tx.objectStore("user_session");
-                const request = store.get("active_user");
-
-                request.onsuccess = () => {
-                    if (request.result) {
-                        const source = document.getElementById('nav-auth-template').innerHTML;
-                        const template = Handlebars.compile(source);
-                        const html = template({ username: request.result.username });
-                        document.getElementById('auth-nav-section').innerHTML = html;
-                    }
-                };
-            }
-        }
-
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/sw.js')
-                    .then(reg => console.log('SW registrado'))
-                    .catch(err => console.log('Error SW', err));
-            });
-        }
-
-        document.addEventListener('DOMContentLoaded', () => {
-            syncUserSession();
-            checkOfflineSession();
+            request.onsuccess  = () => resolve(request.result);
+            request.onerror    = () => reject(request.error);
         });
+    }
+    async function syncUserSession() {
+        const db  = await initDB();
+        const tx  = db.transaction("user_session", "readwrite");
+        const store = tx.objectStore("user_session");
 
-        window.addEventListener('online', syncUserSession);
-        window.addEventListener('offline', checkOfflineSession);
+        if (CURRENT_USER) {
+            const prev = await idbGet(store, "active_user");
+            if (prev && prev.username !== CURRENT_USER) {
+                await clearCartForUser(db, prev.username);
+            }
+
+            store.put({ id: "active_user", username: CURRENT_USER });
+            syncCartFromServer(db);
+        } else {
+            store.delete("active_user");
+        }
+    }
+
+    function idbGet(store, key) {
+        return new Promise((resolve) => {
+            const req = store.get(key);
+            req.onsuccess = () => resolve(req.result || null);
+            req.onerror   = () => resolve(null);
+        });
+    }
+
+    function cartKey(username, bookId) {
+        return `${username}:${bookId}`;
+    }
+
+    async function saveCartItem(db, username, item) {
+        const tx    = db.transaction("cart", "readwrite");
+        const store = tx.objectStore("cart");
+        store.put({
+            key       : cartKey(username, item.book_id ?? item.id),
+            username,
+            book_id   : item.book_id ?? item.id,
+            book_title: item.book_title,
+            book_price: item.book_price,
+            quantity  : item.quantity,
+            item_id   : item.item_id ?? item.id   
+        });
+    }
+
+    async function removeCartItem(db, username, bookId) {
+        const tx    = db.transaction("cart", "readwrite");
+        const store = tx.objectStore("cart");
+        store.delete(cartKey(username, bookId));
+    }
+
+    async function getCartItems(db, username) {
+        return new Promise((resolve) => {
+            const tx    = db.transaction("cart", "readonly");
+            const store = tx.objectStore("cart");
+            const index = store.index("by_user");
+            const req   = index.getAll(username);
+            req.onsuccess = () => resolve(req.result || []);
+            req.onerror   = () => resolve([]);
+        });
+    }
+
+    async function clearCartForUser(db, username) {
+        const items = await getCartItems(db, username);
+        const tx    = db.transaction("cart", "readwrite");
+        const store = tx.objectStore("cart");
+        items.forEach(item => store.delete(item.key));
+    }
+
+    async function syncCartFromServer(db) {
+        if (!navigator.onLine || !CURRENT_USER) return;
+
+        try {
+            const res  = await fetch("/api/cart/items/");
+            if (!res.ok) return;
+            const data = await res.json();
+            await clearCartForUser(db, CURRENT_USER);
+            for (const item of data.items || []) {
+                await saveCartItem(db, CURRENT_USER, item);
+            }
+            updateCartBadge(data.total_items ?? data.items?.length ?? 0);
+        } catch (_) {
+            const items = await getCartItems(db, CURRENT_USER);
+            updateCartBadge(items.reduce((s, i) => s + i.quantity, 0));
+        }
+    }
+
+    function updateCartBadge(count) {
+        const badge = document.getElementById("cart-badge");
+        if (!badge) return;
+
+        if (count > 0) {
+            badge.textContent = count > 99 ? "99+" : count;
+            badge.style.display = "flex";
+            badge.classList.remove("bump");
+            void badge.offsetWidth; 
+            badge.classList.add("bump");
+            setTimeout(() => badge.classList.remove("bump"), 300);
+        } else {
+            badge.style.display = "none";
+        }
+    }
+
+    window.CartDB = {
+        async refresh() {
+            const db    = await initDB();
+            const items = await getCartItems(db, CURRENT_USER);
+            const total = items.reduce((s, i) => s + i.quantity, 0);
+            updateCartBadge(total);
+        },
+        async saveItem(item) {
+            const db = await initDB();
+            await saveCartItem(db, CURRENT_USER, item);
+            this.refresh();
+        },
+        async removeItem(bookId) {
+            const db = await initDB();
+            await removeCartItem(db, CURRENT_USER, bookId);
+            this.refresh();
+        },
+        async getAll() {
+            const db = await initDB();
+            return getCartItems(db, CURRENT_USER);
+        }
+    };
+
+    async function checkOfflineSession() {
+        if (!navigator.onLine) {
+            const db    = await initDB();
+            const tx    = db.transaction("user_session", "readonly");
+            const store = tx.objectStore("user_session");
+            const req   = store.get("active_user");
+
+            req.onsuccess = async () => {
+                if (req.result) {
+                    const tplEl = document.getElementById("nav-auth-template");
+                    if (tplEl && window.Handlebars) {
+                        const template = Handlebars.compile(tplEl.innerHTML);
+                        const html     = template({ username: req.result.username });
+                        const section  = document.getElementById("auth-nav-section");
+                        if (section) section.innerHTML = html;
+                    }
+                    const db2  = await initDB();
+                    const items = await getCartItems(db2, req.result.username);
+                    updateCartBadge(items.reduce((s, i) => s + i.quantity, 0));
+                }
+            };
+        }
+    }
+
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/sw.js')
+                .then(() => console.log('SW registrado'))
+                .catch(err => console.warn('Error SW', err));
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        syncUserSession();
+        checkOfflineSession();
+    });
+
+    window.addEventListener('online',  syncUserSession);
+    window.addEventListener('offline', checkOfflineSession);
     </script>
 </body>
 </html>
